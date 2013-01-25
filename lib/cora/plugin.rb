@@ -1,4 +1,3 @@
-require 'fiber'
 require 'forwardable'
 
 class Cora::Plugin
@@ -43,14 +42,13 @@ class Cora::Plugin
             log "Matches, executing block"
 
             self.match_data = match
-            f = Fiber.new do
-              puts "Executing captures: #{captures.inspect}, entry: #{entry[:block].inspect}"
+            Thread.new do
+              log "Thread: #{Thread.current.inspect}"
+              log "Executing captures: #{captures.inspect}, entry: #{entry[:block].inspect}"
               result = instance_exec(*captures, &entry[:block])
             end
 
-            f.resume
-
-            puts "-> Fiber complete"
+            puts "-> Thread complete"
             return true
           end
         end
@@ -71,15 +69,21 @@ class Cora::Plugin
 
   def ask(question, options={})
     log "Ask: #{question}"
+    log "Thread: #{Thread.current.inspect}"
 
-    f = Fiber.current
-    options[:prompt_for_response] = true
-    manager.respond(question, options)
-    manager.set_callback do |text|
-      f.resume(text)
+    sem = Mutex.new
+
+    thread = Thread.current
+    
+    Thread.new do
+      options[:prompt_for_response] = true
+      manager.respond(question, options)
+      manager.set_callback do |text|
+        log "-> In Callback #{text}"
+        thread.wakeup
+      end
     end
-
-    Fiber.yield
+    Thread.stop
   end
 
   def confirm(question, options = {unmatched_message: "I'm sorry, I didn't understand that."}, &block)

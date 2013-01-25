@@ -45,11 +45,8 @@ class Cora
   end
 
   def set_callback(&block)
+    log "[Debug - Plugin Manager] Setting Callback"
     @callback = block
-  end
-
-  def set_active_fiber(fiber)
-    @fiber = fiber
   end
 
   def set_location(latitude, longitude, extra = {})
