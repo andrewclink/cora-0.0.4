@@ -1,4 +1,5 @@
 require 'forwardable'
+require 'fiber'
 
 class Cora::Plugin
 
@@ -35,20 +36,19 @@ class Cora::Plugin
         log "Matches #{regex}"
 
         if entry[:within_state]
-          log "Applicable states: #{entry[:within_state].join(', ')}"
-          log "Current state: #{current_state}"
+          log 2, "Applicable states: #{entry[:within_state].join(', ')}"
+          log current_state.nil? ? 2 : 1, "Current state: #{current_state}"
 
           if entry[:within_state].include?(current_state)
-            log "Matches, executing block"
+            log 3, "Matches, executing block"
 
             self.match_data = match
-            Thread.new do
-              log "Thread: #{Thread.current.inspect}"
-              log "Executing captures: #{captures.inspect}, entry: #{entry[:block].inspect}"
+            Fiber.new {
+              log 2, "Executing captures: #{captures.inspect}, entry: #{entry[:block].inspect}"
               result = instance_exec(*captures, &entry[:block])
-            end
+            }.resume
 
-            puts "-> Thread complete"
+            puts "-> Fiber complete"
             return true
           end
         end
@@ -69,22 +69,16 @@ class Cora::Plugin
 
   def ask(question, options={})
     log "Ask: #{question}"
-    log "Thread: #{Thread.current.inspect}"
-
-    sem = Mutex.new
-
-    thread = Thread.current
     
-    Thread.new do
-      options[:prompt_for_response] = true
-      manager.respond(question, options)
-      manager.set_callback do |text|
-        log "-> In Callback #{text}"
-        thread.wakeup
-      end
+    f = Fiber.current
+    options[:prompt_for_response] = true
+    manager.respond(question, options)
+    manager.set_callback do |text|
+      f.resume(text)
     end
-    Thread.stop
+
   end
+  
 
   def confirm(question, options = {unmatched_message: "I'm sorry, I didn't understand that."}, &block)
     while (response = ask(question))

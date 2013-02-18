@@ -4,17 +4,18 @@ require "cora/location"
 
 class Cora
 
-  attr_reader :location
+  attr_reader   :location
+  attr_accessor :logger
 
   def plugins
     @plugins ||= []
   end
-
+  
   def process(text)
-    log "Processing '#{text}'"
+    log 3, "Processing '#{text}'"
 
     if @callback
-      log "Active callback found, resuming"
+      log 2, "Active callback found, resuming"
 
       # We must set the active callback to nil first, otherwise
       # multiple callbacks within one listen block won't work
@@ -25,11 +26,11 @@ class Cora
     end
 
     plugins.each do |plugin|
-      log "Processing plugin #{plugin}"
+      log 3, "Processing plugin #{plugin}"
       return true if plugin.process(text)
     end
 
-    log "No matches for '#{text}'"
+    log 2, "No matches for '#{text}'"
     no_matches
   end
 
@@ -45,15 +46,23 @@ class Cora
   end
 
   def set_callback(&block)
-    log "[Debug - Plugin Manager] Setting Callback"
+    log 3, "Setting Callback"
     @callback = block
+  end
+
+  def set_active_fiber(fiber)
+    @fiber = fiber
   end
 
   def set_location(latitude, longitude, extra = {})
     @location = Location.new(latitude, longitude, extra)
   end
 
-  def log(text)
-    $stderr.puts(text) if defined?(LOG)
+  def log(level=1, text)
+    if logger.nil?
+      $stderr.puts(text) if defined?(LOG)
+    else
+      logger.log(level, text) 
+    end
   end
 end
